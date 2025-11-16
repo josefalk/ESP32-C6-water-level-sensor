@@ -33,7 +33,7 @@ featuring WiFi setup and live web dashboard.
 
 ---
 
-## 🔌 Wiring
+##  Wiring
 
 ### A02YYUW → ESP32-C6
 
@@ -103,12 +103,12 @@ featuring WiFi setup and live web dashboard.
 
  ## Photos:
 
- ![photo1](images/photo1.jpg)
- ![photo2](images/photo2.jpg)
+ ![photo1](Images/photo1.jpg)
+ ![photo2](Images/photo2.jpg)
 
 
 ## don't forget to turn on UART Serial.
-![photo3](images/Turn-on-serial-connectoin.png)
+![photo3](Images/Turn-on-serial-connectoin.png)
 
 
 ## ⚙️ Other Details
