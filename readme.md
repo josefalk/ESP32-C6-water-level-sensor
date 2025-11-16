@@ -98,7 +98,7 @@ featuring WiFi setup and live web dashboard.
 
 ## Screen shot of Webserver:
 
-![Webserver-view](images/Webserver-view.png)
+![Webserver-view](Images/Webserver-view.png)
 
 
  ## Photos:
