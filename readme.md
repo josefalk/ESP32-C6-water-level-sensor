@@ -5,10 +5,7 @@ Ultrasonic tank-level monitor with
 and **NeoPixel RGB LED**, 
 featuring WiFi setup and live web dashboard.
 
----
-
 ##  Features
-
 - **A02YYUW ultrasonic distance sensor** (UART)
 - **SSD1306 OLED display** (I²C) for live readings
 - **NeoPixel RGB LED** status indicator
@@ -16,20 +13,18 @@ featuring WiFi setup and live web dashboard.
 - Configurable **full** and **empty** tank distances
 - Modular C++/ESP32 code
 
----
-
 ##  Project Structure
 
-esp32-distance-sensor/
-├── README.md
-├── main/
-│   ├── main.py # Main application
-│   ├── A02YYUW.h / A02YYUW.cpp # Ultrasonic sensor driver
-│   ├── user-led.h / user-led.cpp # NeoPixel LED control
-│   ├── user-screen.h / user-screen.cpp # OLED display module
-│   ├── user-wifi.h / user-wifi.cpp # WiFi & web server
-└── Libraries/
-    └── ...
+-esp32-distance-sensor/
+-├── README.md
+-├── main/
+-│   ├── main.py # Main application
+-│   ├── A02YYUW.h / A02YYUW.cpp # Ultrasonic sensor driver
+-│   ├── user-led.h / user-led.cpp # NeoPixel LED control
+-│   ├── user-screen.h / user-screen.cpp # OLED display module
+-│   ├── user-wifi.h / user-wifi.cpp # WiFi & web server
+-└── Libraries/
+-    └── ...
 
 ---
 
