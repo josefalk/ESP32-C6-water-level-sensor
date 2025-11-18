@@ -18,13 +18,13 @@ featuring WiFi setup and live web dashboard.
 esp32-distance-sensor/
 ├── README.md
 ├── main/
-│   ├── main.py # Main application
-│   ├── A02YYUW.h / A02YYUW.cpp # Ultrasonic sensor driver
-│   ├── user-led.h / user-led.cpp # NeoPixel LED control
-│   ├── user-screen.h / user-screen.cpp # OLED display module
-│   ├── user-wifi.h / user-wifi.cpp # WiFi & web server
+│ ├── main.py # Main application
+│ ├── A02YYUW.h / A02YYUW.cpp # Ultrasonic sensor driver
+│ ├── user-led.h / user-led.cpp # NeoPixel LED control
+│ ├── user-screen.h / user-screen.cpp # OLED display module
+│ └── user-wifi.h / user-wifi.cpp # WiFi & web server
 └── Libraries/
-    └── ...
+└── ...
 
 
 ##  Wiring
