@@ -15,18 +15,17 @@ featuring WiFi setup and live web dashboard.
 
 ##  Project Structure
 
--esp32-distance-sensor/
--├── README.md
--├── main/
--│   ├── main.py # Main application
--│   ├── A02YYUW.h / A02YYUW.cpp # Ultrasonic sensor driver
--│   ├── user-led.h / user-led.cpp # NeoPixel LED control
--│   ├── user-screen.h / user-screen.cpp # OLED display module
--│   ├── user-wifi.h / user-wifi.cpp # WiFi & web server
--└── Libraries/
--    └── ...
+esp32-distance-sensor/
+├── README.md
+├── main/
+│   ├── main.py # Main application
+│   ├── A02YYUW.h / A02YYUW.cpp # Ultrasonic sensor driver
+│   ├── user-led.h / user-led.cpp # NeoPixel LED control
+│   ├── user-screen.h / user-screen.cpp # OLED display module
+│   ├── user-wifi.h / user-wifi.cpp # WiFi & web server
+└── Libraries/
+    └── ...
 
----
 
 ##  Wiring
 
