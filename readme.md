@@ -1,4 +1,4 @@
-# 🚰 ESP32-C6 Water Level Monitoring System
+# ESP32-C6 Water Level Monitoring System
 
 Ultrasonic tank-level monitor with 
 **A02YYUW sensor**, **SSD1306 OLED**, 
