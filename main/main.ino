@@ -10,16 +10,13 @@
 HardwareSerial mySerial(2);           // Use UART2 for the A02YYUW sensor
 A02YYUW sensor(mySerial, 4, 5);       // RX=4, TX=5 (sensor uses serial)
 
-const float FULL_DISTANCE  = 30.0;    // Distance when tank is considered 100% full
-const float EMPTY_DISTANCE = 200.0;   // Distance when tank is considered empty
-
 void setup() {
   Serial.begin(115200);     // Debug output
   sensor.begin(9600);       // A02YYUW baud rate
 
   initLED();                // Prepare RGB LED / WS2812
   initScreen();             // Initialize OLED and UI
-  initWiFi();               // Start Wi-Fi AP/STA + web server
+  initWiFi();               // Start Wi-Fi AP/STA + web server (loads distances from preferences)
 
   showText("System Ready!"); // Show startup message
 }
@@ -33,16 +30,20 @@ void loop() {
   if (distance > 0) {       // Valid reading
     Serial.printf("Distance: %.1f cm\n", distance);
 
+    // Get current calibration values (always use live values from preferences)
+    float fullDist = getFullDistance();
+    float emptyDist = getEmptyDistance();
+
     // Convert raw distance to percentage (0–100%)
-    float percent = (EMPTY_DISTANCE - distance) /
-                    (EMPTY_DISTANCE - FULL_DISTANCE) * 100;
+    float percent = (emptyDist - distance) /
+                    (emptyDist - fullDist) * 100;
     percent = constrain(percent, 0, 100);
 
     updateSensorData(distance, percent);   // Expose values to web UI
 
     showWaterLevel(distance,               // Draw tank level on screen
-                    FULL_DISTANCE,
-                    EMPTY_DISTANCE);
+                    fullDist,
+                    emptyDist);
 
     // Auto LED color logic (only if auto mode is enabled)
     if (isLedAutoMode()) {

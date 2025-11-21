@@ -3,7 +3,7 @@
 // ============================================
 #include "user-wifi.h"
 #include "user-led.h"
-#include "user-screen.h"  // Add this include
+#include "user-screen.h"
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
@@ -18,7 +18,7 @@ Preferences preferences;
 
 // Variables
 int ledState = LOW;
-bool ledAutoMode = true;  // true = automatic control, false = manual control
+bool ledAutoMode = true;
 const int RESET_BUTTON_PIN = 0;
 unsigned long buttonPressStart = 0;
 bool buttonPressed = false;
@@ -28,6 +28,10 @@ bool isAPMode = true;
 float currentDistance = 0.0;
 float currentPercent = 0.0;
 bool sensorDataValid = false;
+
+// Calibration values (defaults)
+float fullDistance = 30.0;
+float emptyDistance = 200.0;
 
 // Forward declarations
 void checkResetButton();
@@ -39,15 +43,39 @@ void handleConnect();
 void handleLedOn();
 void handleLedOff();
 void handleStatus();
-void handleData();  // New endpoint for sensor data
-void handleScreenOn();  // New endpoint for screen control
-void handleScreenOff(); // New endpoint for screen control
+void handleData();
+void handleScreenOn();
+void handleScreenOff();
+void handleCalibration();
+void handleGetCalibration();
 void handleNotFound();
+
+float getFullDistance() {
+  return fullDistance;
+}
+
+float getEmptyDistance() {
+  return emptyDistance;
+}
+
+void setCalibration(float full, float empty) {
+  fullDistance = full;
+  emptyDistance = empty;
+  preferences.putFloat("fullDist", full);
+  preferences.putFloat("emptyDist", empty);
+  Serial.printf("Calibration saved: Full=%.1f cm, Empty=%.1f cm\n", full, empty);
+}
 
 void initWiFi() {
   pinMode(RESET_BUTTON_PIN, INPUT_PULLUP);
   
   preferences.begin("wifi", false);
+  
+  // Load calibration values or use defaults
+  fullDistance = preferences.getFloat("fullDist", 30.0);
+  emptyDistance = preferences.getFloat("emptyDist", 200.0);
+  Serial.printf("Loaded calibration: Full=%.1f cm, Empty=%.1f cm\n", fullDistance, emptyDistance);
+  
   String ssid = preferences.getString("ssid", "");
   String password = preferences.getString("password", "");
   
@@ -64,10 +92,12 @@ void initWiFi() {
   server.on("/connect", HTTP_POST, handleConnect);
   server.on("/led/on", handleLedOn);
   server.on("/led/off", handleLedOff);
-  server.on("/screen/on", handleScreenOn);   // New endpoint
-  server.on("/screen/off", handleScreenOff); // New endpoint
+  server.on("/screen/on", handleScreenOn);
+  server.on("/screen/off", handleScreenOff);
   server.on("/status", handleStatus);
-  server.on("/data", handleData);  // New endpoint
+  server.on("/data", handleData);
+  server.on("/calibration", HTTP_POST, handleCalibration);
+  server.on("/calibration", HTTP_GET, handleGetCalibration);
   server.onNotFound(handleNotFound);
   
   server.begin();
@@ -157,7 +187,7 @@ void connectToWiFi(const char* ssid, const char* password) {
   
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println();
-    Serial.println("✅ WiFi connected successfully!");
+    Serial.println("WiFi connected successfully!");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
     isAPMode = false;
@@ -167,7 +197,7 @@ void connectToWiFi(const char* ssid, const char* password) {
     ledOff();
   } else {
     Serial.println();
-    Serial.println("❌ Failed to connect to WiFi");
+    Serial.println("Failed to connect to WiFi");
     Serial.println("Starting AP mode for configuration...");
     startAPMode();
   }
@@ -178,7 +208,7 @@ void startAPMode() {
   WiFi.softAP(ap_ssid, ap_password);
   
   Serial.println("=============================");
-  Serial.println("📡 AP Mode Started");
+  Serial.println("AP Mode Started");
   Serial.println("=============================");
   Serial.print("SSID: ");
   Serial.println(ap_ssid);
@@ -224,8 +254,37 @@ void handleRoot() {
   html += ".sensor-item { padding: 15px; background: white; border-radius: 5px; text-align: center; }";
   html += ".sensor-label { font-size: 12px; color: #666; }";
   html += ".sensor-value { font-size: 24px; font-weight: bold; color: #333; }";
+  html += ".calibration-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0; }";
+  html += ".calibration-input { display: flex; flex-direction: column; }";
+  html += ".calibration-input label { font-size: 14px; color: #666; margin-bottom: 5px; }";
+  html += ".save-calibration { background-color: #FF9800; width: 100%; }";
   html += "</style>";
   html += "<script>";
+  
+  // Load calibration values
+  html += "function loadCalibration() {";
+  html += "  fetch('/calibration').then(r => r.json()).then(data => {";
+  html += "    document.getElementById('fullDist').value = data.full;";
+  html += "    document.getElementById('emptyDist').value = data.empty;";
+  html += "  });";
+  html += "}";
+  html += "window.onload = loadCalibration;";
+  
+  // Save calibration
+  html += "function saveCalibration() {";
+  html += "  const full = parseFloat(document.getElementById('fullDist').value);";
+  html += "  const empty = parseFloat(document.getElementById('emptyDist').value);";
+  html += "  if (isNaN(full) || isNaN(empty)) { alert('Please enter valid numbers'); return; }";
+  html += "  if (full >= empty) { alert('Full distance must be less than empty distance'); return; }";
+  html += "  fetch('/calibration', {";
+  html += "    method: 'POST',";
+  html += "    headers: {'Content-Type': 'application/x-www-form-urlencoded'},";
+  html += "    body: 'full='+full+'&empty='+empty";
+  html += "  }).then(r => r.text()).then(data => {";
+  html += "    alert(data);";
+  html += "    setTimeout(() => location.reload(), 1000);";
+  html += "  });";
+  html += "}";
   
   // Auto-refresh sensor data
   html += "function updateSensorData() {";
@@ -276,13 +335,13 @@ void handleRoot() {
   html += "</script>";
   html += "</head><body>";
   html += "<div class='container'>";
-  html += "<h1> Water Monitor</h1>";
+  html += "<h1>Water Monitor</h1>";
   
   if (isAPMode) {
-    html += "<div class='warning'> <strong>Configuration Mode</strong><br>Device is in Access Point mode. Connect to WiFi to start monitoring.</div>";
+    html += "<div class='warning'>⚠ <strong>Configuration Mode</strong><br>Device is in Access Point mode. Connect to WiFi to start monitoring.</div>";
     html += "<h2>WiFi Setup</h2>";
     html += "<p>Connect to your WiFi network:</p>";
-    html += "<button class='scan' onclick='scanNetworks()'>Scan Networks</button>";
+    html += "<button class='scan' onclick='scanNetworks()'>📡 Scan Networks</button>";
     html += "<div id='networks' class='network-list'></div>";
     html += "<div style='margin-top: 20px;'>";
     html += "<input type='text' id='ssid' placeholder='WiFi SSID' />";
@@ -307,6 +366,20 @@ void handleRoot() {
     html += "</div>";
     html += "</div>";
     
+    html += "<h2>Tank Calibration</h2>";
+    html += "<p>Set the distance measurements for your tank:</p>";
+    html += "<div class='calibration-group'>";
+    html += "<div class='calibration-input'>";
+    html += "<label>Full Tank Distance (cm):</label>";
+    html += "<input type='number' id='fullDist' step='0.1' min='0' placeholder='30.0' />";
+    html += "</div>";
+    html += "<div class='calibration-input'>";
+    html += "<label>Empty Tank Distance (cm):</label>";
+    html += "<input type='number' id='emptyDist' step='0.1' min='0' placeholder='200.0' />";
+    html += "</div>";
+    html += "</div>";
+    html += "<button class='save-calibration' onclick='saveCalibration()'>Save Calibration</button>";
+    
     html += "<h2>LED Control</h2>";
     html += "<p>Control the RGB LED (currently in " + String(ledAutoMode ? "AUTO" : "OFF") + " mode):</p>";
     html += "<button class='on' onclick=\"location.href='/led/on'\">Enable AUTO Mode</button>";
@@ -329,12 +402,43 @@ void handleRoot() {
     html += "<p>SSID: " + WiFi.SSID() + "</p>";
     html += "<p>RSSI: " + String(WiFi.RSSI()) + " dBm</p>";
   }
-  html += "<p><small> Hold GPIO 0 button for 3 seconds to reset WiFi settings</small></p>";
+  html += "<p><small>Hold GPIO 0 button for 3 seconds to reset WiFi settings</small></p>";
   html += "</div>";
   html += "</div>";
   html += "</body></html>";
   
   server.send(200, "text/html", html);
+}
+
+void handleCalibration() {
+  if (server.hasArg("full") && server.hasArg("empty")) {
+    float full = server.arg("full").toFloat();
+    float empty = server.arg("empty").toFloat();
+    
+    if (full >= empty) {
+      server.send(400, "text/plain", "Error: Full distance must be less than empty distance");
+      return;
+    }
+    
+    if (full <= 0 || empty <= 0) {
+      server.send(400, "text/plain", "Error: Values must be positive");
+      return;
+    }
+    
+    setCalibration(full, empty);
+    server.send(200, "text/plain", "Calibration saved! Full=" + String(full, 1) + "cm, Empty=" + String(empty, 1) + "cm");
+  } else {
+    server.send(400, "text/plain", "Missing calibration parameters");
+  }
+}
+
+void handleGetCalibration() {
+  String json = "{";
+  json += "\"full\":" + String(fullDistance, 1) + ",";
+  json += "\"empty\":" + String(emptyDistance, 1);
+  json += "}";
+  
+  server.send(200, "application/json", json);
 }
 
 void handleData() {
@@ -374,17 +478,17 @@ void handleConnect() {
     preferences.putString("ssid", ssid);
     preferences.putString("password", password);
     
-    server.send(200, "text/plain", "✅ Credentials saved! Device will restart and connect to: " + ssid);
+    server.send(200, "text/plain", "Credentials saved! Device will restart and connect to: " + ssid);
     
     delay(2000);
     ESP.restart();
   } else {
-    server.send(400, "text/plain", "❌ Missing SSID");
+    server.send(400, "text/plain", "Missing SSID");
   }
 }
 
 void handleLedOn() {
-  ledAutoMode = true;  // Enable automatic mode
+  ledAutoMode = true;
   ledState = HIGH;
   Serial.println("LED set to AUTO mode (ON)");
   
@@ -401,9 +505,9 @@ void handleLedOn() {
 }
 
 void handleLedOff() {
-  ledAutoMode = false;  // Disable automatic mode
+  ledAutoMode = false;
   ledState = LOW;
-  ledOff();  // Turn off immediately
+  ledOff();
   Serial.println("LED set to MANUAL mode (OFF)");
   
   String html = "<!DOCTYPE html><html><head>";
