@@ -18,11 +18,15 @@ Preferences preferences;
 
 // Variables
 int ledState = LOW;
-bool ledAutoMode = true;
 const int RESET_BUTTON_PIN = 0;
 unsigned long buttonPressStart = 0;
 bool buttonPressed = false;
 bool isAPMode = true;
+void setLedAutoMode(bool state);
+bool getScreenState();
+void setScreenState(bool state);
+void handleLed();
+void handleScreen();
 
 // Sensor data variables
 float currentDistance = 0.0;
@@ -86,14 +90,11 @@ void initWiFi() {
     Serial.println("No saved WiFi credentials. Starting AP mode...");
     startAPMode();
   }
-  
+  server.on("/led", handleLed);
+  server.on("/screen", handleScreen);
   server.on("/", handleRoot);
   server.on("/scan", handleScan);
   server.on("/connect", HTTP_POST, handleConnect);
-  server.on("/led/on", handleLedOn);
-  server.on("/led/off", handleLedOff);
-  server.on("/screen/on", handleScreenOn);
-  server.on("/screen/off", handleScreenOff);
   server.on("/status", handleStatus);
   server.on("/data", handleData);
   server.on("/calibration", HTTP_POST, handleCalibration);
@@ -260,7 +261,13 @@ void handleRoot() {
   html += ".save-calibration { background-color: #FF9800; width: 100%; }";
   html += "</style>";
   html += "<script>";
-  
+
+  // -----------------------------
+  // LED + SCREEN EXTRA JAVASCRIPT
+  // -----------------------------
+  html += "function led(state){ fetch('/led?state='+state).then(r=>r.text()).then(console.log); }";
+  html += "function screen(state){ fetch('/screen?state='+state).then(r=>r.text()).then(console.log); }";
+
   // Load calibration values
   html += "function loadCalibration() {";
   html += "  fetch('/calibration').then(r => r.json()).then(data => {";
@@ -269,7 +276,7 @@ void handleRoot() {
   html += "  });";
   html += "}";
   html += "window.onload = loadCalibration;";
-  
+
   // Save calibration
   html += "function saveCalibration() {";
   html += "  const full = parseFloat(document.getElementById('fullDist').value);";
@@ -281,11 +288,10 @@ void handleRoot() {
   html += "    headers: {'Content-Type': 'application/x-www-form-urlencoded'},";
   html += "    body: 'full='+full+'&empty='+empty";
   html += "  }).then(r => r.text()).then(data => {";
-  html += "    alert(data);";
-  html += "    setTimeout(() => location.reload(), 1000);";
+  html += "    alert(data); setTimeout(()=>location.reload(), 1000);";
   html += "  });";
   html += "}";
-  
+
   // Auto-refresh sensor data
   html += "function updateSensorData() {";
   html += "  fetch('/data').then(r => r.json()).then(data => {";
@@ -302,7 +308,7 @@ void handleRoot() {
   html += "}";
   html += "setInterval(updateSensorData, 1000);";
   html += "updateSensorData();";
-  
+
   // Network scanning
   html += "function scanNetworks() {";
   html += "  document.getElementById('networks').innerHTML = '<p>Scanning...</p>';";
@@ -311,9 +317,9 @@ void handleRoot() {
   html += "    data.networks.forEach(n => {";
   html += "      html += '<div class=\"network-item\" onclick=\"selectNetwork(\\''+n.ssid+'\\','+n.secure+')\">';";
   html += "      html += '<strong>'+n.ssid+'</strong> ('+n.rssi+' dBm) '+(n.secure ? ' (SECURE) ' : ' (OPEN) ');";
-  html += "      html += '</div>';";
+  html += "      html += '</div>';"; 
   html += "    });";
-  html += "    document.getElementById('networks').innerHTML = html;";
+  html += "    document.getElementById('networks').innerHTML = html;"; 
   html += "  });";
   html += "}";
   html += "function selectNetwork(ssid, secure) {";
@@ -328,15 +334,13 @@ void handleRoot() {
   html += "    method: 'POST',";
   html += "    headers: {'Content-Type': 'application/x-www-form-urlencoded'},";
   html += "    body: 'ssid='+encodeURIComponent(ssid)+'&password='+encodeURIComponent(password)";
-  html += "  }).then(r => r.text()).then(data => {";
-  html += "    alert(data);";
-  html += "  });";
+  html += "  }).then(r => r.text()).then(data => { alert(data); });";
   html += "}";
   html += "</script>";
   html += "</head><body>";
   html += "<div class='container'>";
   html += "<h1>Water Monitor</h1>";
-  
+
   if (isAPMode) {
     html += "<div class='warning'>⚠ <strong>Configuration Mode</strong><br>Device is in Access Point mode. Connect to WiFi to start monitoring.</div>";
     html += "<h2>WiFi Setup</h2>";
@@ -348,12 +352,15 @@ void handleRoot() {
     html += "<input type='password' id='password' placeholder='WiFi Password' />";
     html += "<button class='connect-btn' onclick='connectWiFi()'>Connect</button>";
     html += "</div>";
+
   } else {
+
     html += "<div class='tank-container'>";
     html += "<h2>Water Tank Level</h2>";
     html += "<div class='tank'>";
     html += "<div id='tankFill' class='tank-fill' style='width: 0%'></div>";
     html += "</div>";
+
     html += "<div class='sensor-data'>";
     html += "<div class='sensor-item'>";
     html += "<div class='sensor-label'>Distance</div>";
@@ -365,7 +372,8 @@ void handleRoot() {
     html += "</div>";
     html += "</div>";
     html += "</div>";
-    
+
+    // Calibration
     html += "<h2>Tank Calibration</h2>";
     html += "<p>Set the distance measurements for your tank:</p>";
     html += "<div class='calibration-group'>";
@@ -379,18 +387,25 @@ void handleRoot() {
     html += "</div>";
     html += "</div>";
     html += "<button class='save-calibration' onclick='saveCalibration()'>Save Calibration</button>";
-    
+
+    // ==============================
+    // LED CONTROL (No Page Reload)
+    // ==============================
     html += "<h2>LED Control</h2>";
     html += "<p>Control the RGB LED (currently in " + String(ledAutoMode ? "AUTO" : "OFF") + " mode):</p>";
-    html += "<button class='on' onclick=\"location.href='/led/on'\">Enable AUTO Mode</button>";
-    html += "<button class='off' onclick=\"location.href='/led/off'\">Turn OFF</button>";
-    
+    html += "<button class='on' onclick=\"led('on')\">Enable AUTO Mode</button>";
+    html += "<button class='off' onclick=\"led('off')\">Turn OFF</button>";
+
+    // ==============================
+    // SCREEN CONTROL (No Page Reload)
+    // ==============================
     html += "<h2 style='margin-top: 30px;'>Screen Control</h2>";
     html += "<p>Control the OLED display (currently " + String(getScreenState() ? "ON" : "OFF") + "):</p>";
-    html += "<button class='on' onclick=\"location.href='/screen/on'\">Turn Screen ON</button>";
-    html += "<button class='off' onclick=\"location.href='/screen/off'\">Turn Screen OFF</button>";
+    html += "<button class='on' onclick=\"screen('on')\">Turn Screen ON</button>";
+    html += "<button class='off' onclick=\"screen('off')\">Turn Screen OFF</button>";
   }
-  
+
+  // Info section
   html += "<div class='info'>";
   html += "<p><strong>Device Info:</strong></p>";
   if (isAPMode) {
@@ -406,7 +421,7 @@ void handleRoot() {
   html += "</div>";
   html += "</div>";
   html += "</body></html>";
-  
+
   server.send(200, "text/html", html);
 }
 
@@ -487,6 +502,34 @@ void handleConnect() {
   }
 }
 
+void handleLed() {
+  if (!server.hasArg("state")) {
+    server.send(400, "application/json", "{\"error\":\"missing state\"}");
+    return;
+  }
+
+  String state = server.arg("state");
+
+  if (state == "on") {
+    setLedAutoMode(true);
+    ledState = HIGH;        // mark that LED is active
+    server.send(200, "application/json", "{\"status\":\"LED AUTO enabled\"}");
+    Serial.println("LED AUTO enabled");
+  }
+  else if (state == "off") {
+    setLedAutoMode(false);  // disable auto mode
+    ledOff();               // actually turn off the LED
+    ledState = LOW;         // mark LED state as OFF
+    server.send(200, "application/json", "{\"status\":\"LED OFF\"}");
+    Serial.println("LED turned OFF manually");
+  }
+  else {
+    server.send(400, "application/json", "{\"error\":\"invalid state\"}");
+  }
+}
+
+
+
 void handleLedOn() {
   ledAutoMode = true;
   ledState = HIGH;
@@ -521,6 +564,30 @@ void handleLedOff() {
   
   server.send(200, "text/html", html);
 }
+
+
+void handleScreen() {
+  if (!server.hasArg("state")) {
+    server.send(400, "application/json", "{\"error\":\"missing state\"}");
+    return;
+  }
+
+  String state = server.arg("state");
+
+  if (state == "on") {
+    setScreenState(true);
+    server.send(200, "application/json", "{\"status\":\"SCREEN ON\"}");
+  }
+  else if (state == "off") {
+    setScreenState(false);
+    server.send(200, "application/json", "{\"status\":\"SCREEN OFF\"}");
+  }
+  else {
+    server.send(400, "application/json", "{\"error\":\"invalid state\"}");
+  }
+}
+
+
 
 void handleScreenOn() {
   setScreenState(true);
@@ -584,3 +651,4 @@ void handleNotFound() {
   
   server.send(404, "text/html", html);
 }
+

@@ -21,6 +21,9 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 bool screenAvailable = false;  // True only if OLED detected on I2C
 bool screenOn = true;          // Current display power state
 bool lastButtonState = HIGH;   // Used for button edge detection
+// Global variable for scrolling
+int scrollX = SCREEN_WIDTH; // Start just off the right edge
+
 
 void initScreen() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);  // Button uses internal pull-up
@@ -129,13 +132,13 @@ void showWaterLevel(float distance, float fullDistance, float emptyDistance) {
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 0);
-  display.print("Dist:");
+  display.print("Distance: ");
   display.print(distance, 1);
-  display.println("cm");
+  display.println(" cm");
 
   // Show percentage line
   display.setCursor(0, 25);
-  display.print("Lvl:");
+  display.print("Level: ");
   display.print(percent);
   display.print("% ");
 
